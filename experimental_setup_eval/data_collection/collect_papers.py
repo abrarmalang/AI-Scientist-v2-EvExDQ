@@ -217,7 +217,9 @@ class PaperCollector:
 
                     # Filter by fields of study
                     if fields_of_study:
-                        paper_fields = [f.lower() for f in paper.get("fieldsOfStudy", [])]
+                        # Handle None case - API may return null for fieldsOfStudy
+                        paper_fields_raw = paper.get("fieldsOfStudy") or []
+                        paper_fields = [f.lower() for f in paper_fields_raw]
                         if not any(f.lower() in paper_fields for f in fields_of_study):
                             continue
 
