@@ -1317,3 +1317,676 @@ def compute_overlap_analysis(
     lines.append("=" * 80)
 
     return "\n".join(lines)
+
+
+# ============================================================================
+# DATASET CHARACTERISTICS & DOMAIN ANALYSIS
+# ============================================================================
+
+def get_domain_distribution(papers_data: Dict) -> Dict[str, int]:
+    """Get count of papers per domain.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        Dictionary mapping domain names to paper counts
+    """
+    domain_counts = {}
+
+    for paper_id, paper_info in papers_data.items():
+        context = paper_info.get('context', {})
+        domain = context.get('domain', 'Unknown').upper()
+
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+
+    return domain_counts
+
+
+def create_dataset_characteristics_table(papers_data: Dict, summary_data: Dict = None) -> pd.DataFrame:
+    """Create Table 1: Dataset Characteristics.
+
+    Args:
+        papers_data: Dictionary of paper results
+        summary_data: Optional summary data
+
+    Returns:
+        DataFrame with dataset characteristics
+    """
+    # Count papers
+    total_papers = len(papers_data)
+
+    # Get domain distribution
+    domain_dist = get_domain_distribution(papers_data)
+
+    # Get papers with ground truth
+    papers_with_gt = sum(
+        1 for p in papers_data.values()
+        if p.get('results', {}).get('ground_truth', {}).get('has_experiments', False)
+    )
+
+    # Create domain distribution rows
+    domain_rows = []
+    for domain, count in sorted(domain_dist.items()):
+        domain_rows.append({
+            'Characteristic': f'  {domain}',
+            'Value': count
+        })
+
+    # Build main table
+    data = [
+        {'Characteristic': 'Total Papers', 'Value': total_papers},
+        {'Characteristic': 'Papers by Domain', 'Value': ''},
+    ] + domain_rows + [
+        {'Characteristic': 'Papers with Ground Truth', 'Value': papers_with_gt},
+        {'Characteristic': 'Success Rate', 'Value': f"{(total_papers / total_papers * 100):.1f}%" if total_papers > 0 else "0%"},
+    ]
+
+    if summary_data:
+        avg_time = summary_data.get('performance', {}).get('avg_time_per_paper', 0)
+        data.append({'Characteristic': 'Avg Time per Paper (s)', 'Value': f"{avg_time:.1f}"})
+
+    return pd.DataFrame(data)
+
+
+def aggregate_by_domain(papers_data: Dict) -> Dict[str, Dict]:
+    """Aggregate statistics by domain.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        Dictionary mapping domains to their aggregate statistics
+    """
+    domain_stats = {}
+
+    for paper_id, paper_info in papers_data.items():
+        context = paper_info.get('context', {})
+        domain = context.get('domain', 'Unknown').upper()
+        results = paper_info.get('results', {})
+
+        if domain not in domain_stats:
+            domain_stats[domain] = {
+                'papers': [],
+                'non_agentic_quality': [],
+                'agentic_quality': [],
+                'non_agentic_alignment': [],
+                'agentic_alignment': [],
+                'improvements': [],
+                'time_ratios': [],
+                'agentic_wins': 0,
+                'non_agentic_wins': 0,
+                'ties': 0
+            }
+
+        # Quality scores
+        non_q = get_quality_score(results, APPROACH_NON_AGENTIC)
+        agentic_q = get_quality_score(results, APPROACH_AGENTIC)
+
+        domain_stats[domain]['papers'].append(paper_id)
+        domain_stats[domain]['non_agentic_quality'].append(non_q)
+        domain_stats[domain]['agentic_quality'].append(agentic_q)
+        domain_stats[domain]['improvements'].append(agentic_q - non_q)
+
+        # Winner
+        if agentic_q > non_q:
+            domain_stats[domain]['agentic_wins'] += 1
+        elif non_q > agentic_q:
+            domain_stats[domain]['non_agentic_wins'] += 1
+        else:
+            domain_stats[domain]['ties'] += 1
+
+        # Alignment scores
+        alignment_data = get_alignment_data(results)
+        domain_stats[domain]['non_agentic_alignment'].append(
+            alignment_data['non_agentic']['overall']
+        )
+        domain_stats[domain]['agentic_alignment'].append(
+            alignment_data['agentic']['overall']
+        )
+
+        # Time ratio
+        non_meta = get_metadata(results, APPROACH_NON_AGENTIC)
+        agentic_meta = get_metadata(results, APPROACH_AGENTIC)
+        non_time = non_meta.get('time_elapsed', 0)
+        agentic_time = agentic_meta.get('time_elapsed', 0)
+        time_ratio = agentic_time / non_time if non_time > 0 else 0
+        domain_stats[domain]['time_ratios'].append(time_ratio)
+
+    return domain_stats
+
+
+def create_domain_performance_table(papers_data: Dict) -> pd.DataFrame:
+    """Create Table 6: Domain-Specific Performance Breakdown.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        DataFrame with domain-specific performance
+    """
+    domain_stats = aggregate_by_domain(papers_data)
+
+    rows = []
+    for domain, stats in sorted(domain_stats.items()):
+        if not stats['non_agentic_quality']:
+            continue
+
+        row = {
+            'Domain': domain,
+            'Papers': len(stats['papers']),
+            'Non-Agentic Quality': np.mean(stats['non_agentic_quality']),
+            'Agentic Quality': np.mean(stats['agentic_quality']),
+            'Quality Improvement': np.mean(stats['improvements']),
+            'Improvement %': (np.mean(stats['improvements']) / np.mean(stats['non_agentic_quality']) * 100) if np.mean(stats['non_agentic_quality']) > 0 else 0,
+            'Non-Agentic Wins': stats['non_agentic_wins'],
+            'Agentic Wins': stats['agentic_wins'],
+            'Ties': stats['ties'],
+            'Avg Time Ratio': np.mean(stats['time_ratios']) if stats['time_ratios'] else 0
+        }
+
+        # Add alignment if available
+        non_align = [a for a in stats['non_agentic_alignment'] if a > 0]
+        agentic_align = [a for a in stats['agentic_alignment'] if a > 0]
+
+        if non_align:
+            row['Non-Agentic Alignment'] = np.mean(non_align)
+        if agentic_align:
+            row['Agentic Alignment'] = np.mean(agentic_align)
+
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+
+    # Add overall row
+    overall_row = {
+        'Domain': 'OVERALL',
+        'Papers': df['Papers'].sum(),
+        'Non-Agentic Quality': df['Non-Agentic Quality'].mean(),
+        'Agentic Quality': df['Agentic Quality'].mean(),
+        'Quality Improvement': df['Quality Improvement'].mean(),
+        'Improvement %': df['Improvement %'].mean(),
+        'Non-Agentic Wins': df['Non-Agentic Wins'].sum(),
+        'Agentic Wins': df['Agentic Wins'].sum(),
+        'Ties': df['Ties'].sum(),
+        'Avg Time Ratio': df['Avg Time Ratio'].mean()
+    }
+
+    if 'Non-Agentic Alignment' in df.columns:
+        overall_row['Non-Agentic Alignment'] = df['Non-Agentic Alignment'].mean()
+    if 'Agentic Alignment' in df.columns:
+        overall_row['Agentic Alignment'] = df['Agentic Alignment'].mean()
+
+    df = pd.concat([df, pd.DataFrame([overall_row])], ignore_index=True)
+
+    return df
+
+
+# ============================================================================
+# ALIGNMENT ANALYSIS TABLES
+# ============================================================================
+
+def create_alignment_scores_table(papers_data: Dict) -> pd.DataFrame:
+    """Create Table 4: Complete Alignment Scores Table.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        DataFrame with detailed alignment scores
+    """
+    rows = []
+
+    for paper_id, paper_info in papers_data.items():
+        results = paper_info.get('results', {})
+        context = paper_info.get('context', {})
+
+        alignment_data = get_alignment_data(results)
+
+        # Only include if has ground truth
+        if alignment_data['non_agentic']['overall'] == 0 and alignment_data['agentic']['overall'] == 0:
+            continue
+
+        title = context.get('title', paper_id)[:50] + '...' if len(context.get('title', '')) > 50 else context.get('title', paper_id)
+
+        # Non-Agentic row
+        row_na = {
+            'Paper': title,
+            'Approach': 'Non-Agentic',
+            'Overall': alignment_data['non_agentic']['overall'],
+            'Baseline Recall': alignment_data['non_agentic']['baselines']['recall'],
+            'Baseline Precision': alignment_data['non_agentic']['baselines']['precision'],
+            'Baseline F1': alignment_data['non_agentic']['baselines']['f1'],
+            'Metric Recall': alignment_data['non_agentic']['metrics']['recall'],
+            'Metric Precision': alignment_data['non_agentic']['metrics']['precision'],
+            'Metric F1': alignment_data['non_agentic']['metrics']['f1'],
+            'Dataset Recall': alignment_data['non_agentic']['datasets']['recall'],
+            'Dataset Precision': alignment_data['non_agentic']['datasets']['precision'],
+            'Dataset F1': alignment_data['non_agentic']['datasets']['f1']
+        }
+        rows.append(row_na)
+
+        # Agentic row
+        row_ag = {
+            'Paper': title,
+            'Approach': 'Agentic',
+            'Overall': alignment_data['agentic']['overall'],
+            'Baseline Recall': alignment_data['agentic']['baselines']['recall'],
+            'Baseline Precision': alignment_data['agentic']['baselines']['precision'],
+            'Baseline F1': alignment_data['agentic']['baselines']['f1'],
+            'Metric Recall': alignment_data['agentic']['metrics']['recall'],
+            'Metric Precision': alignment_data['agentic']['metrics']['precision'],
+            'Metric F1': alignment_data['agentic']['metrics']['f1'],
+            'Dataset Recall': alignment_data['agentic']['datasets']['recall'],
+            'Dataset Precision': alignment_data['agentic']['datasets']['precision'],
+            'Dataset F1': alignment_data['agentic']['datasets']['f1']
+        }
+        rows.append(row_ag)
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+
+    # Add aggregate row for each approach
+    for approach in ['Non-Agentic', 'Agentic']:
+        approach_data = df[df['Approach'] == approach]
+        if len(approach_data) > 0:
+            agg_row = {
+                'Paper': 'MEAN',
+                'Approach': approach,
+                'Overall': approach_data['Overall'].mean(),
+                'Baseline Recall': approach_data['Baseline Recall'].mean(),
+                'Baseline Precision': approach_data['Baseline Precision'].mean(),
+                'Baseline F1': approach_data['Baseline F1'].mean(),
+                'Metric Recall': approach_data['Metric Recall'].mean(),
+                'Metric Precision': approach_data['Metric Precision'].mean(),
+                'Metric F1': approach_data['Metric F1'].mean(),
+                'Dataset Recall': approach_data['Dataset Recall'].mean(),
+                'Dataset Precision': approach_data['Dataset Precision'].mean(),
+                'Dataset F1': approach_data['Dataset F1'].mean()
+            }
+            df = pd.concat([df, pd.DataFrame([agg_row])], ignore_index=True)
+
+    return df
+
+
+def create_single_paper_alignment_table(alignment_data: Dict) -> pd.DataFrame:
+    """Create alignment scores table for a single paper.
+
+    Args:
+        alignment_data: Alignment data from get_alignment_data()
+
+    Returns:
+        DataFrame with alignment scores for both approaches
+    """
+    rows = []
+
+    for approach_name, approach_key in [('Non-Agentic', 'non_agentic'), ('Agentic', 'agentic')]:
+        data = alignment_data[approach_key]
+
+        row = {
+            'Approach': approach_name,
+            'Overall': data['overall'],
+            'Baseline Recall': data['baselines']['recall'],
+            'Baseline Precision': data['baselines']['precision'],
+            'Baseline F1': data['baselines']['f1'],
+            'Metric Recall': data['metrics']['recall'],
+            'Metric Precision': data['metrics']['precision'],
+            'Metric F1': data['metrics']['f1'],
+            'Dataset Recall': data['datasets']['recall'],
+            'Dataset Precision': data['datasets']['precision'],
+            'Dataset F1': data['datasets']['f1']
+        }
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+# ============================================================================
+# STATISTICAL SIGNIFICANCE TESTS
+# ============================================================================
+
+def compute_statistical_significance(papers_data: Dict) -> Dict:
+    """Compute statistical significance tests for quality differences.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        Dictionary with statistical test results
+    """
+    from scipy import stats
+
+    # Collect paired quality scores
+    non_agentic_scores = []
+    agentic_scores = []
+
+    for paper_id, paper_info in papers_data.items():
+        results = paper_info.get('results', {})
+        non_q = get_quality_score(results, APPROACH_NON_AGENTIC)
+        agentic_q = get_quality_score(results, APPROACH_AGENTIC)
+
+        non_agentic_scores.append(non_q)
+        agentic_scores.append(agentic_q)
+
+    if len(non_agentic_scores) < 2:
+        return {
+            'error': 'Insufficient data for statistical testing (need at least 2 papers)',
+            'n_papers': len(non_agentic_scores)
+        }
+
+    # Paired t-test (parametric)
+    t_statistic, t_pvalue = stats.ttest_rel(agentic_scores, non_agentic_scores)
+
+    # Wilcoxon signed-rank test (non-parametric)
+    if len(non_agentic_scores) >= 3:
+        try:
+            w_statistic, w_pvalue = stats.wilcoxon(agentic_scores, non_agentic_scores)
+        except:
+            w_statistic, w_pvalue = None, None
+    else:
+        w_statistic, w_pvalue = None, None
+
+    # Effect size (Cohen's d)
+    mean_diff = np.mean(np.array(agentic_scores) - np.array(non_agentic_scores))
+    std_diff = np.std(np.array(agentic_scores) - np.array(non_agentic_scores), ddof=1)
+    cohens_d = mean_diff / std_diff if std_diff > 0 else 0
+
+    # Confidence interval (95%)
+    n = len(non_agentic_scores)
+    se = std_diff / np.sqrt(n)
+    ci_95 = stats.t.interval(0.95, n-1, loc=mean_diff, scale=se)
+
+    return {
+        'n_papers': n,
+        'mean_difference': mean_diff,
+        'std_difference': std_diff,
+        'paired_t_test': {
+            'statistic': t_statistic,
+            'p_value': t_pvalue,
+            'significant': t_pvalue < 0.05
+        },
+        'wilcoxon_test': {
+            'statistic': w_statistic,
+            'p_value': w_pvalue,
+            'significant': w_pvalue < 0.05 if w_pvalue is not None else None
+        } if w_statistic is not None else None,
+        'effect_size': {
+            'cohens_d': cohens_d,
+            'interpretation': interpret_cohens_d(cohens_d)
+        },
+        'confidence_interval_95': {
+            'lower': ci_95[0],
+            'upper': ci_95[1]
+        },
+        'mean_scores': {
+            'non_agentic': np.mean(non_agentic_scores),
+            'agentic': np.mean(agentic_scores)
+        }
+    }
+
+
+def interpret_cohens_d(d: float) -> str:
+    """Interpret Cohen's d effect size.
+
+    Args:
+        d: Cohen's d value
+
+    Returns:
+        Interpretation string
+    """
+    abs_d = abs(d)
+    if abs_d < 0.2:
+        return 'negligible'
+    elif abs_d < 0.5:
+        return 'small'
+    elif abs_d < 0.8:
+        return 'medium'
+    else:
+        return 'large'
+
+
+def create_significance_table(sig_results: Dict) -> pd.DataFrame:
+    """Create Table 7: Statistical Significance Tests.
+
+    Args:
+        sig_results: Results from compute_statistical_significance()
+
+    Returns:
+        DataFrame with significance test results
+    """
+    if 'error' in sig_results:
+        return pd.DataFrame([{
+            'Test': 'Error',
+            'Value': sig_results['error']
+        }])
+
+    rows = [
+        {'Metric': 'Sample Size (n)', 'Value': sig_results['n_papers']},
+        {'Metric': 'Mean Difference (Agentic - Non-Agentic)', 'Value': f"{sig_results['mean_difference']:.4f}"},
+        {'Metric': 'Std Deviation of Differences', 'Value': f"{sig_results['std_difference']:.4f}"},
+        {'Metric': '', 'Value': ''},
+        {'Metric': 'Paired t-test', 'Value': ''},
+        {'Metric': '  t-statistic', 'Value': f"{sig_results['paired_t_test']['statistic']:.4f}"},
+        {'Metric': '  p-value', 'Value': f"{sig_results['paired_t_test']['p_value']:.4f}"},
+        {'Metric': '  Significant (α=0.05)?', 'Value': 'Yes' if sig_results['paired_t_test']['significant'] else 'No'},
+        {'Metric': '', 'Value': ''},
+    ]
+
+    if sig_results.get('wilcoxon_test'):
+        rows.extend([
+            {'Metric': 'Wilcoxon Signed-Rank Test', 'Value': ''},
+            {'Metric': '  W-statistic', 'Value': f"{sig_results['wilcoxon_test']['statistic']:.4f}"},
+            {'Metric': '  p-value', 'Value': f"{sig_results['wilcoxon_test']['p_value']:.4f}"},
+            {'Metric': '  Significant (α=0.05)?', 'Value': 'Yes' if sig_results['wilcoxon_test']['significant'] else 'No'},
+            {'Metric': '', 'Value': ''},
+        ])
+
+    rows.extend([
+        {'Metric': 'Effect Size', 'Value': ''},
+        {'Metric': "  Cohen's d", 'Value': f"{sig_results['effect_size']['cohens_d']:.4f}"},
+        {'Metric': '  Interpretation', 'Value': sig_results['effect_size']['interpretation'].capitalize()},
+        {'Metric': '', 'Value': ''},
+        {'Metric': '95% Confidence Interval', 'Value': ''},
+        {'Metric': '  Lower bound', 'Value': f"{sig_results['confidence_interval_95']['lower']:.4f}"},
+        {'Metric': '  Upper bound', 'Value': f"{sig_results['confidence_interval_95']['upper']:.4f}"},
+    ])
+
+    return pd.DataFrame(rows)
+
+
+# ============================================================================
+# ADDITIONAL VISUALIZATIONS
+# ============================================================================
+
+def plot_winner_by_domain(papers_data: Dict) -> plt.Figure:
+    """Create Figure 5: Winner Frequency by Domain.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        Matplotlib figure
+    """
+    domain_stats = aggregate_by_domain(papers_data)
+
+    # Prepare data
+    domains = []
+    agentic_wins = []
+    non_agentic_wins = []
+    ties = []
+
+    for domain in sorted(domain_stats.keys()):
+        stats = domain_stats[domain]
+        domains.append(domain)
+        agentic_wins.append(stats['agentic_wins'])
+        non_agentic_wins.append(stats['non_agentic_wins'])
+        ties.append(stats['ties'])
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_STANDARD)
+
+    x = np.arange(len(domains))
+    width = 0.25
+
+    ax.bar(x - width, non_agentic_wins, width, label='Non-Agentic Wins', color='#3498db')
+    ax.bar(x, agentic_wins, width, label='Agentic Wins', color='#e74c3c')
+    ax.bar(x + width, ties, width, label='Ties', color='#95a5a6')
+
+    ax.set_xlabel('Domain', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Number of Papers', fontsize=12, fontweight='bold')
+    ax.set_title('Winner Frequency by Domain', fontsize=14, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(domains, rotation=45, ha='right')
+    ax.legend()
+    ax.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_component_recall_heatmap(papers_data: Dict) -> plt.Figure:
+    """Create Figure 7: Component Recall Heatmap.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        Matplotlib figure
+    """
+    # Collect component scores
+    component_data = {
+        'Non-Agentic': {'Baselines': [], 'Metrics': [], 'Datasets': []},
+        'Agentic': {'Baselines': [], 'Metrics': [], 'Datasets': []}
+    }
+
+    for paper_id, paper_info in papers_data.items():
+        results = paper_info.get('results', {})
+        alignment_data = get_alignment_data(results)
+
+        # Skip if no ground truth
+        if alignment_data['non_agentic']['overall'] == 0 and alignment_data['agentic']['overall'] == 0:
+            continue
+
+        # Non-Agentic
+        component_data['Non-Agentic']['Baselines'].append(
+            alignment_data['non_agentic']['baselines']['recall']
+        )
+        component_data['Non-Agentic']['Metrics'].append(
+            alignment_data['non_agentic']['metrics']['recall']
+        )
+        component_data['Non-Agentic']['Datasets'].append(
+            alignment_data['non_agentic']['datasets']['recall']
+        )
+
+        # Agentic
+        component_data['Agentic']['Baselines'].append(
+            alignment_data['agentic']['baselines']['recall']
+        )
+        component_data['Agentic']['Metrics'].append(
+            alignment_data['agentic']['metrics']['recall']
+        )
+        component_data['Agentic']['Datasets'].append(
+            alignment_data['agentic']['datasets']['recall']
+        )
+
+    # Calculate means
+    heatmap_data = []
+    for approach in ['Non-Agentic', 'Agentic']:
+        row = [
+            np.mean(component_data[approach]['Baselines']) if component_data[approach]['Baselines'] else 0,
+            np.mean(component_data[approach]['Metrics']) if component_data[approach]['Metrics'] else 0,
+            np.mean(component_data[approach]['Datasets']) if component_data[approach]['Datasets'] else 0
+        ]
+        heatmap_data.append(row)
+
+    # Create heatmap
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    im = ax.imshow(heatmap_data, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+
+    # Set ticks
+    ax.set_xticks(np.arange(3))
+    ax.set_yticks(np.arange(2))
+    ax.set_xticklabels(['Baselines', 'Metrics', 'Datasets'], fontsize=12)
+    ax.set_yticklabels(['Non-Agentic', 'Agentic'], fontsize=12)
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('Recall Score', rotation=270, labelpad=20, fontsize=12, fontweight='bold')
+
+    # Add text annotations
+    for i in range(2):
+        for j in range(3):
+            text = ax.text(j, i, f'{heatmap_data[i][j]:.2f}',
+                          ha="center", va="center", color="black", fontsize=14, fontweight='bold')
+
+    ax.set_title('Component Recall Heatmap (Mean Across Papers)', fontsize=14, fontweight='bold', pad=20)
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_alignment_distributions(papers_data: Dict) -> plt.Figure:
+    """Create alignment score distribution plots.
+
+    Args:
+        papers_data: Dictionary of paper results
+
+    Returns:
+        Matplotlib figure with subplots
+    """
+    # Collect alignment scores
+    non_agentic_overall = []
+    agentic_overall = []
+
+    for paper_id, paper_info in papers_data.items():
+        results = paper_info.get('results', {})
+        alignment_data = get_alignment_data(results)
+
+        # Skip if no ground truth
+        if alignment_data['non_agentic']['overall'] == 0 and alignment_data['agentic']['overall'] == 0:
+            continue
+
+        non_agentic_overall.append(alignment_data['non_agentic']['overall'])
+        agentic_overall.append(alignment_data['agentic']['overall'])
+
+    if not non_agentic_overall:
+        # No data, return empty figure
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, 'No alignment data available',
+                ha='center', va='center', fontsize=14)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        return fig
+
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=FIGURE_SIZE_WIDE)
+
+    # Histogram
+    ax = axes[0]
+    bins = np.linspace(0, 1, 11)
+    ax.hist(non_agentic_overall, bins=bins, alpha=0.6, label='Non-Agentic', color='#3498db', edgecolor='black')
+    ax.hist(agentic_overall, bins=bins, alpha=0.6, label='Agentic', color='#e74c3c', edgecolor='black')
+    ax.set_xlabel('Overall Alignment Score', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Frequency', fontsize=12, fontweight='bold')
+    ax.set_title('Distribution of Overall Alignment Scores', fontsize=14, fontweight='bold')
+    ax.legend()
+    ax.grid(axis='y', alpha=0.3)
+
+    # Box plot
+    ax = axes[1]
+    data_to_plot = [non_agentic_overall, agentic_overall]
+    bp = ax.boxplot(data_to_plot, labels=['Non-Agentic', 'Agentic'], patch_artist=True)
+    bp['boxes'][0].set_facecolor('#3498db')
+    bp['boxes'][1].set_facecolor('#e74c3c')
+    ax.set_ylabel('Overall Alignment Score', fontsize=12, fontweight='bold')
+    ax.set_title('Alignment Score Box Plot', fontsize=14, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+    return fig
