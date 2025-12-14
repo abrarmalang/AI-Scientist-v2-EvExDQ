@@ -26,6 +26,10 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("ai-scientist")
 
+# Silence noisy libraries
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 # Add parent directory to path for ai_scientist imports
 parent_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(parent_dir))
