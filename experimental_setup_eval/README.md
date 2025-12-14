@@ -14,6 +14,9 @@ This extension to [AI Scientist v2](https://github.com/SakanaAI/AI-Scientist-v2)
 cd AI-Scientist-v2-EvExDQ
 pip install -r requirements.txt
 
+# Navigate to the module directory
+cd experimental_setup_eval
+
 # Set at least one API key (pipeline will auto-select model)
 export OPENAI_API_KEY="your-key"        # For GPT-4o
 # OR
@@ -24,8 +27,10 @@ export ANTHROPIC_API_KEY="your-key"     # For Claude Sonnet
 
 ### 2. Collect Papers
 
+### 2. Collect Papers
+
 ```bash
-python experimental_setup_eval/data_collection/collect_papers.py \
+python run_collect.py \
     --query "transformer neural networks" \
     --max-results 5 \
     --download-pdfs \
@@ -39,7 +44,7 @@ python experimental_setup_eval/data_collection/collect_papers.py \
 Before running the expensive evaluation pipeline, validate that papers were extracted correctly:
 
 ```bash
-python experimental_setup_eval/validate_and_filter_papers.py \
+python run_validate.py \
     data/papers/{timestamp}_collection
 ```
 
@@ -53,11 +58,11 @@ python experimental_setup_eval/validate_and_filter_papers.py \
 
 ```bash
 # Use validated papers (recommended)
-python experimental_setup_eval/run_pipeline.py \
+python run_pipeline.py \
     data/papers/{timestamp}_collection/validated_papers_to_process.txt
 
 # OR use all papers (not recommended)
-python experimental_setup_eval/run_pipeline.py \
+python run_pipeline.py \
     data/papers/{timestamp}_collection/papers_to_process.txt
 ```
 
@@ -162,42 +167,50 @@ CONCLUSION: Non-agentic is better for this paper
 
 ## Project Structure
 
+## Project Structure
+
 ```
 experimental_setup_eval/
 ├── README.md                       # This file
-├── validate_and_filter_papers.py  # Validation ⭐
 ├── run_pipeline.py                 # Main pipeline ⭐
+├── run_collect.py                  # Paper collection ⭐
+├── run_validate.py                 # Validation ⭐
 │
-├── docs/                           # Detailed documentation
-│   ├── USER_GUIDE.md              # Complete user guide
-│   ├── DEVELOPER_GUIDE.md         # Architecture & development
-│   ├── ARCHITECTURE.md            # AI Scientist v2 reference
-│   └── ADVANCED_GUIDES.md         # Advanced topics
+├── core/                           # Core infrastructure
+│   ├── pipeline.py                 # Pipeline orchestrator
+│   ├── config.py                   # Configuration logic
+│   ├── schema.py                   # Data models
+│   └── prompts.py                  # LLM prompts
 │
-├── tools/                          # Core processing tools
-│   ├── paper_processor.py         # Parse & redact papers
-│   └── ground_truth_extractor.py  # Extract actual experiments
+├── collection/                     # Paper collection logic
+│   ├── collector.py               # Collection implementation
+│   └── improved_extraction.py     # Text extraction
+│
+├── validation/                     # Validation logic
+│   └── validator.py               # Validation implementation
 │
 ├── generators/                     # Setup generation
 │   ├── non_agentic_generator.py   # Single-shot generation
 │   └── agentic_generator.py       # Multi-draft generation
 │
 ├── evaluation/                     # Scoring & comparison
-│   ├── quality_scorer.py          # Score setup quality
-│   ├── comparator.py              # Compare approaches
-│   └── alignment_scorer.py        # Alignment vs ground truth
+│   ├── unified_evaluator.py       # Unified scoring logic
+│   └── data_models.py             # Typed data structures
 │
-├── data_collection/                # Collection internals
-│   ├── collect_papers.py          # Paper collection ⭐
-│   └── improved_paper_extraction.py
+├── tests/                          # Test suite
+│
+├── docs/                           # Detailed documentation
+│   ├── USER_GUIDE.md              # Complete user guide
+│   ├── DEVELOPER_GUIDE.md         # Architecture & development
+│   └── ARCHITECTURE.md            # AI Scientist v2 reference
 │
 └── notebooks/                      # Jupyter notebooks
     └── visualize_results.ipynb    # Results visualization
 ```
 
 **Main Entry Points** (⭐):
-- `data_collection/collect_papers.py` - Collect papers with improved text extraction
-- `validate_and_filter_papers.py` - Validate paper extraction quality
+- `run_collect.py` - Collect papers with improved text extraction
+- `run_validate.py` - Validate paper extraction quality
 - `run_pipeline.py` - Run full evaluation pipeline
 
 ---
@@ -253,11 +266,13 @@ Each paper is scored on:
 ### Custom Thresholds
 
 ```bash
-python experimental_setup_eval/validate_and_filter_papers.py \
+```bash
+python run_validate.py \
     data/papers/{timestamp}_collection \
     --min-abstract-length 200 \
     --min-intro-length 500 \
     --min-method-length 300
+```
 ```
 
 ### Example Validation Results
@@ -279,7 +294,8 @@ Validated: 1/3 papers passed
 
 ```bash
 # Step 1: Collect papers
-python experimental_setup_eval/data_collection/collect_papers.py \
+# Step 1: Collect papers
+python run_collect.py \
     --query "weather forecasting" \
     --max-results 5 \
     --download-pdfs \
@@ -288,7 +304,7 @@ python experimental_setup_eval/data_collection/collect_papers.py \
 # Output: data/papers/20251119_161731_collection/
 
 # Step 2: Validate extraction quality (recommended!)
-python experimental_setup_eval/validate_and_filter_papers.py \
+python run_validate.py \
     data/papers/20251119_161731_collection
 
 # Output:
@@ -297,7 +313,7 @@ python experimental_setup_eval/validate_and_filter_papers.py \
 # Validated: 1/3 papers passed
 
 # Step 3: Run pipeline on validated papers only
-python experimental_setup_eval/run_pipeline.py \
+python run_pipeline.py \
     data/papers/20251119_161731_collection/validated_papers_to_process.txt
 
 # Output: runs/20251119_162419_full_eval/
@@ -420,8 +436,8 @@ jupyter notebook experimental_setup_eval/notebooks/visualize_results.ipynb
 
 ## Support
 
-**Main Pipeline**: `experimental_setup_eval/run_pipeline.py`
-**Validation**: `experimental_setup_eval/validate_and_filter_papers.py`
+**Main Pipeline**: `run_pipeline.py`
+**Validation**: `run_validate.py`
 **AI Scientist v2**: https://github.com/SakanaAI/AI-Scientist-v2
 
 For detailed documentation, see the [docs/](docs/) folder.

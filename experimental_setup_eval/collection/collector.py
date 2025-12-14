@@ -511,7 +511,7 @@ class PaperCollector:
             f.write(f"# Collection: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"# Query: {query}\n")
             f.write("#\n")
-            f.write("# Use with: python experimental_setup_eval/run_pipeline.py papers_to_process.txt\n")
+            f.write("# Use with: python run_pipeline.py papers_to_process.txt\n")
             f.write("#\n\n")
 
             for paper in papers:
@@ -546,6 +546,17 @@ class PaperCollector:
         print(f"Summary saved: {summary_path}")
         print(f"Pipeline input file: {papers_to_process_path}")
 
+        # Display follow-on command
+        print(f"\n{'='*70}")
+        print(f"NEXT STEPS")
+        print(f"{'='*70}")
+        print(f"Validate and filter papers:")
+        try:
+             rel_path = os.path.relpath(self.run_dir)
+        except ValueError:
+             rel_path = self.run_dir
+        print(f"\npython run_validate.py {rel_path}")
+
         return papers
 
 
@@ -565,6 +576,10 @@ Examples:
   python %(prog)s --query "BERT language model" --field "Computer Science" --max-results 2 --download-pdfs --convert-markdown
         """
     )
+
+    # Load default configuration
+    from experimental_setup_eval.core.config import get_default_config
+    config = get_default_config().load().collection
 
     # API configuration
     parser.add_argument(
@@ -594,8 +609,8 @@ Examples:
     parser.add_argument(
         "--max-results",
         type=int,
-        default=2,
-        help="Maximum number of papers to collect (default: 2)"
+        default=config.max_results,
+        help=f"Maximum number of papers to collect (default: {config.max_results})"
     )
     parser.add_argument(
         "--year-min",
@@ -610,7 +625,8 @@ Examples:
     parser.add_argument(
         "--min-citations",
         type=int,
-        help="Minimum citation count"
+        default=config.min_citations,
+        help=f"Minimum citation count (default: {config.min_citations})"
     )
     parser.add_argument(
         "--venue",
@@ -627,13 +643,15 @@ Examples:
     )
     parser.add_argument(
         "--download-pdfs",
-        action="store_true",
-        help="Download PDFs if available"
+        action=argparse.BooleanOptionalAction if sys.version_info >= (3, 9) else "store_true",
+        default=config.download_pdfs,
+        help=f"Download PDFs if available (default: {config.download_pdfs})"
     )
     parser.add_argument(
         "--convert-markdown",
-        action="store_true",
-        help="Convert PDFs to markdown (requires pymupdf4llm)"
+        action=argparse.BooleanOptionalAction if sys.version_info >= (3, 9) else "store_true",
+        default=config.convert_markdown,
+        help=f"Convert PDFs to markdown (requires pymupdf4llm) (default: {config.convert_markdown})"
     )
     parser.add_argument(
         "--download-latex",
@@ -662,7 +680,7 @@ Examples:
     )
 
     # Build fields of study list
-    fields_of_study = None
+    fields_of_study = list(config.fields_of_study) if config.fields_of_study else None
     if args.field:
         fields_of_study = [args.field]
 

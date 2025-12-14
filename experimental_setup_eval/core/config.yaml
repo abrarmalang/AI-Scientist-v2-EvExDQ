@@ -1,0 +1,92 @@
+# Experimental Setup Evaluation Pipeline Configuration
+# OmegaConf-based configuration with typed validation and CLI support
+
+# Model configuration
+models:
+  default: claude-3-haiku-20240307
+  available:
+    # Groq Models (Fast and cost-effective)
+    llama-3.1-8b: llama-3.1-8b-instant
+    llama-3.1-70b: llama-3.1-70b-versatile
+    # OpenAI Models
+    gpt-4o: gpt-4o-2024-11-20
+    gpt-4-turbo: gpt-4-turbo
+    # Anthropic Models
+    claude-sonnet: claude-sonnet-4-5-20250929
+    claude-3-5-sonnet: claude-3-5-sonnet-20241022
+    claude-3-haiku: claude-3-haiku-20240307
+
+# Evaluation configuration
+evaluation:
+  # Quality scoring weights (must sum to 1.0)
+  quality_weights:
+    completeness: 0.30
+    diversity: 0.20
+    alignment: 0.25
+    datasets: 0.15
+    protocol: 0.10
+
+  # Alignment scoring weights
+  alignment_weights:
+    semantic_weight: 0.6
+    exact_weight: 0.4
+    baseline_weight: 0.4
+    metric_weight: 0.3
+    dataset_weight: 0.3
+
+  # Agentic generator settings
+  agentic:
+    num_drafts: 3
+    max_iterations: 5
+    improvement_threshold: 0.05
+
+  # Classification thresholds
+  quality_thresholds:
+    excellent: 0.8
+    good: 0.6
+    fair: 0.4
+
+  # Similarity thresholds for semantic matching
+  similarity_thresholds:
+    high: 0.8
+    medium: 0.6
+    low: 0.4
+
+# Data Collection configuration
+collection:
+  max_results: 10
+  min_citations: 0
+  year_range: "2020-2025"
+  download_pdfs: true
+  convert_markdown: true
+  fields_of_study: 
+    - "Computer Science"
+
+# Validation configuration
+validation:
+  min_title_length: 15
+  min_abstract_length: 100
+  min_intro_length: 300
+  min_method_length: 200
+  min_total_length: 1000
+
+# Pipeline execution settings
+pipeline:
+  redact_sections:
+    - experiment
+    - result
+    - evaluation
+  output_pattern: runs/{timestamp}_full_eval
+  max_retries: 3
+  timeout_seconds: 300
+  parallel_processing: false
+
+# Global settings
+debug: false
+verbose: true
+save_intermediate: true
+
+# Environment variable interpolation examples:
+# models:
+#   default: ${env:EVAL_MODEL,claude-sonnet-4-5-20250929}
+# debug: ${env:DEBUG,false}

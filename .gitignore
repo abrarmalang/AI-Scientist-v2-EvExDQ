@@ -194,3 +194,6 @@ final_papers/
 # HF
 cache/
 huggingface/
+
+experimental_setup_eval/experimental_setup_eval/data/
+experimental_setup_eval/runs/

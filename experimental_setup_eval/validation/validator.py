@@ -33,7 +33,8 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 
 # Import actual paper processor
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Import actual paper processor
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from experimental_setup_eval.tools.paper_processor import PaperProcessorTool
 
 
@@ -402,7 +403,7 @@ def write_filtered_papers(
         f.write(f"# Query: {query}\n")
         f.write(f"# Validated: {len(passed_results)}/{len(results)} papers passed\n")
         f.write("#\n")
-        f.write("# Use with: python experimental_setup_eval/run_pipeline.py validated_papers_to_process.txt\n")
+        f.write("# Use with: python run_pipeline.py validated_papers_to_process.txt\n")
         f.write("#\n\n")
 
         # Write passed papers
@@ -424,6 +425,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
+    # Load default configuration
+    from experimental_setup_eval.core.config import get_default_config
+    config = get_default_config().load().validation
+
     parser.add_argument(
         "collection_dir",
         type=Path,
@@ -432,26 +437,26 @@ def main():
     parser.add_argument(
         "--min-title-length",
         type=int,
-        default=10,
-        help="Minimum title length (default: 10)"
+        default=config.min_title_length,
+        help=f"Minimum title length (default: {config.min_title_length})"
     )
     parser.add_argument(
         "--min-abstract-length",
         type=int,
-        default=100,
-        help="Minimum abstract length (default: 100)"
+        default=config.min_abstract_length,
+        help=f"Minimum abstract length (default: {config.min_abstract_length})"
     )
     parser.add_argument(
         "--min-intro-length",
         type=int,
-        default=300,
-        help="Minimum introduction length (default: 300)"
+        default=config.min_intro_length,
+        help=f"Minimum introduction length (default: {config.min_intro_length})"
     )
     parser.add_argument(
         "--min-method-length",
         type=int,
-        default=200,
-        help="Minimum method section length (default: 200)"
+        default=config.min_method_length,
+        help=f"Minimum method section length (default: {config.min_method_length})"
     )
     parser.add_argument(
         "--output-dir",
@@ -582,7 +587,7 @@ def main():
 
     if summary['passed'] > 0:
         print(f"✓ {summary['passed']} papers ready for processing!")
-        print(f"\nNext: python experimental_setup_eval/run_pipeline.py {filtered_path}")
+        print(f"\nNext: python run_pipeline.py {filtered_path}")
     else:
         print("⚠️  No papers passed validation. Check common issues above.")
         print("\nConsider:")

@@ -1,15 +1,26 @@
 """
-Evaluation components for experimental setup assessment.
+Unified evaluation components for experimental setup assessment.
+Provides clean, simplified interfaces replacing multiple separate evaluator classes.
 """
 
-from .setup_quality_scorer import SetupQualityScorer
-from .comparator import SetupComparator, format_comparison_report
-from .alignment_scorer import AlignmentScorer, format_alignment_report
+from .unified_evaluator import UnifiedEvaluator
+from .data_models import (
+    EvaluationResult, QualityResult, AlignmentResult, ComparisonResult,
+    ExperimentalSetup, PaperContext, GroundTruth, ComponentAlignment,
+    ConfidenceLevel, extract_setup_from_dict, calculate_component_alignment
+)
 
 __all__ = [
-    "SetupQualityScorer",
-    "SetupComparator",
-    "format_comparison_report",
-    "AlignmentScorer",
-    "format_alignment_report"
+    "UnifiedEvaluator",
+    "EvaluationResult",
+    "QualityResult",
+    "AlignmentResult",
+    "ComparisonResult",
+    "ExperimentalSetup",
+    "PaperContext",
+    "GroundTruth",
+    "ComponentAlignment",
+    "ConfidenceLevel",
+    "extract_setup_from_dict",
+    "calculate_component_alignment"
 ]

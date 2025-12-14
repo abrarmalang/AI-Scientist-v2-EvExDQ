@@ -37,7 +37,7 @@ experimental_setup_spec = FunctionSpec(
                             "description": "Why this baseline is important"
                         }
                     },
-                    "required": ["name", "description", "complexity", "rationale"]
+                    "required": ["name", "description"]
                 }
             },
             "metrics": {
@@ -72,7 +72,7 @@ experimental_setup_spec = FunctionSpec(
                             "description": "Why this metric is appropriate"
                         }
                     },
-                    "required": ["name", "description", "type", "higher_is_better", "expected_range", "rationale"]
+                    "required": ["name", "description"]
                 }
             },
             "datasets": {
@@ -106,7 +106,7 @@ experimental_setup_spec = FunctionSpec(
                             "description": "Why this dataset is appropriate"
                         }
                     },
-                    "required": ["name", "description", "size", "domain", "split", "rationale"]
+                    "required": ["name", "description"]
                 }
             },
             "significance_tests": {
@@ -162,11 +162,67 @@ experimental_setup_spec = FunctionSpec(
                 },
                 "required": ["num_runs", "random_seeds", "validation_strategy", "hyperparameter_tuning", "compute_budget"]
             },
+            "hypotheses": {
+                "type": "array",
+                "description": "Clear, testable hypotheses derived from the research question",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "sample_size_analysis": {
+                "type": "string",
+                "description": "Justification for sample size, including power analysis if applicable"
+            },
+            "control_groups": {
+                "type": "array",
+                "description": "Control conditions to isolate variables of interest",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name of the control group"
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Description of the control condition"
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "description": "What confounding variable this controls for"
+                        }
+                    },
+                    "required": ["name", "description", "rationale"]
+                }
+            },
+            "randomization_blinding": {
+                "type": "string",
+                "description": "Details on randomization and blinding procedures to reduce bias"
+            },
+            "validity_assessments": {
+                "type": "object",
+                "description": "Assessment of validity types",
+                "properties": {
+                    "internal_validity": {
+                        "type": "string",
+                        "description": "How the design ensures internal validity (causality)"
+                    },
+                    "external_validity": {
+                        "type": "string",
+                        "description": "How the design ensures external validity (generalizability)"
+                    },
+                    "construct_validity": {
+                        "type": "string",
+                        "description": "How the measures accurately reflect theoretical constructs"
+                    }
+                },
+                "required": ["internal_validity", "external_validity"]
+            },
             "reasoning": {
                 "type": "string",
                 "description": "Overall rationale for why this experimental setup is appropriate for evaluating the proposed research"
             }
         },
-        "required": ["baselines", "metrics", "datasets", "significance_tests", "experimental_protocol", "reasoning"]
+        "required": ["baselines", "metrics", "datasets", "significance_tests", "experimental_protocol", "reasoning", "hypotheses", "control_groups"]
     }
 )

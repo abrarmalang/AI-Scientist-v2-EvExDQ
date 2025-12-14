@@ -10,7 +10,8 @@ from typing import Dict, Any
 from datetime import datetime
 
 from ai_scientist.llm import create_client
-from ai_scientist.treesearch.backend import query
+# Enhanced backend with native Anthropic tool calling support
+from experimental_setup_eval.backends.native_anthropic_backend import smart_query as query
 from experimental_setup_eval.generators.setup_spec import experimental_setup_spec
 
 
@@ -94,83 +95,5 @@ class NonAgenticSetupGenerator:
 
     def _create_prompt(self, paper_context: Dict[str, Any]) -> str:
         """Create prompt for setup generation."""
-
-        # Extract key information from paper context
-        title = paper_context.get("title", "Unknown Title")
-        abstract = paper_context.get("abstract", "")
-        research_question = paper_context.get("research_question", "")
-        domain = paper_context.get("domain", "ML")
-        method_description = paper_context.get("method_description", "")
-        related_work = paper_context.get("related_work", "")
-        introduction = paper_context.get("introduction", "")
-
-        prompt = f"""You are an expert in machine learning research methodology. Your task is to design a comprehensive experimental setup for evaluating the research proposed in the following paper.
-
-**Paper Title**: {title}
-
-**Abstract**: {abstract}
-
-**Research Question**: {research_question}
-
-**Domain**: {domain}
-
-**Introduction**: {introduction[:3000] if introduction else "Not available"}
-
-**Related Work**: {related_work[:4000] if related_work else "Not available"}
-
-**Method Description**: {method_description[:3000] if method_description else "Not available"}
-
----
-
-**Your Task**: Design a complete experimental setup that includes:
-
-1. **Baselines**: What baseline methods should be compared against?
-   **CRITICAL**: Look carefully at the Related Work section above to identify specific prior methods mentioned by name.
-   Include:
-   - Specific prior methods mentioned in Related Work (use exact names if provided)
-   - Simple baselines appropriate for this domain
-   - Ablation baselines if applicable
-   - Ensure diversity in complexity levels
-
-   **Example**: If Related Work mentions "BERT" and "GPT-2", include those as baselines, not generic "transformer model".
-
-2. **Metrics**: What evaluation metrics should be used?
-   **CRITICAL**: Look at the research question and domain to infer what metrics the authors would likely use.
-   Consider:
-   - Primary metrics that directly measure the research question (be specific to the domain)
-   - Diagnostic metrics for deeper analysis
-   - Domain-appropriate metrics (e.g., for localization: accuracy, precision error; for NLP: perplexity, BLEU; for CV: mAP, IoU)
-   - Specify if higher is better and expected ranges
-
-   **Example**: For indoor localization, use "Localization Accuracy" not just "Accuracy".
-
-3. **Datasets**: What datasets should be used for evaluation?
-   **CRITICAL**: If the Introduction or Method mentions specific data collection or dataset types, reference those.
-   Include:
-   - Datasets mentioned or implied in the paper (e.g., "indoor paths", "RSSI fingerprints")
-   - Standard benchmark datasets used in this specific research area
-   - Consider dataset characteristics mentioned in the method (size, domain, split)
-
-4. **Significance Tests**: What statistical tests should validate the results?
-   - Paired t-test, ANOVA, Wilcoxon, etc.
-   - Specify when each test is appropriate
-
-5. **Experimental Protocol**: Define the experimental procedure:
-   - Number of runs with different random seeds
-   - Cross-validation strategy
-   - Hyperparameter tuning approach
-   - Estimated compute budget
-
-6. **Overall Reasoning**: Explain why this experimental setup is appropriate for evaluating the proposed research.
-
-**Important Guidelines**:
-- Design the setup to be rigorous, reproducible, and comprehensive
-- Ensure baselines cover different complexity levels
-- Choose metrics that align with the paper's research question
-- Select datasets appropriate for the domain
-- Specify concrete details (not vague descriptions)
-- Justify your choices with clear rationale
-
-Generate a complete experimental setup following these guidelines.
-"""
-        return prompt
+        from experimental_setup_eval.core.prompts import create_setup_prompt
+        return create_setup_prompt(paper_context, focus_type="generic")

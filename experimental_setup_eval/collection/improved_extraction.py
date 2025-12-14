@@ -260,8 +260,8 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python improved_paper_extraction.py <collection_dir>")
-        print("Example: python improved_paper_extraction.py data/papers/20241117_120000_collection/")
+        print("Usage: python experimental_setup_eval/collection/improved_extraction.py <collection_dir>")
+        print("Example: python experimental_setup_eval/collection/improved_extraction.py data/papers/20241117_120000_collection/")
         sys.exit(1)
 
     base_dir = Path(sys.argv[1])

@@ -7,6 +7,10 @@ from ai_scientist.utils.token_tracker import track_token_usage
 import anthropic
 import backoff
 import openai
+try:
+    import groq
+except ImportError:
+    groq = None
 
 MAX_NUM_TOKENS = 4096
 
@@ -70,6 +74,13 @@ AVAILABLE_LLMS = [
     "ollama/deepseek-r1:32b",
     "ollama/deepseek-r1:70b",
     "ollama/deepseek-r1:671b",
+
+    # Groq models
+    "llama-3.1-8b-instant",
+    "llama-3.1-70b-versatile",
+    "mixtral-8x7b-32768",
+    "gemma-7b-it",
+    "gemma2-9b-it",
 ]
 
 
@@ -81,7 +92,7 @@ AVAILABLE_LLMS = [
         openai.APITimeoutError,
         openai.InternalServerError,
         anthropic.RateLimitError,
-    ),
+    ) + ((groq.RateLimitError, groq.InternalServerError) if groq else ()),
 )
 @track_token_usage
 def get_batch_responses_from_llm(
@@ -250,7 +261,19 @@ def make_llm_call(client, model, temperature, system_message, prompt):
             n=1,
             seed=0,
         )
-    
+    elif model in ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma-7b-it", "gemma2-9b-it"]:
+        return client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+            seed=0,
+        )
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -262,7 +285,7 @@ def make_llm_call(client, model, temperature, system_message, prompt):
         openai.APITimeoutError,
         openai.InternalServerError,
         anthropic.RateLimitError,
-    ),
+    ) + ((groq.RateLimitError, groq.InternalServerError) if groq else ()),
 )
 def get_response_from_llm(
     prompt,
@@ -434,6 +457,21 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif model in ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma-7b-it", "gemma2-9b-it"]:
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -479,30 +517,30 @@ def extract_json_between_markers(llm_output: str) -> dict | None:
 
 def create_client(model) -> tuple[Any, str]:
     if model.startswith("claude-"):
-        print(f"Using Anthropic API with model {model}.")
+        # print(f"Using Anthropic API with model {model}.")
         return anthropic.Anthropic(), model
     elif model.startswith("bedrock") and "claude" in model:
         client_model = model.split("/")[-1]
-        print(f"Using Amazon Bedrock with model {client_model}.")
+        # print(f"Using Amazon Bedrock with model {client_model}.")
         return anthropic.AnthropicBedrock(), client_model
     elif model.startswith("vertex_ai") and "claude" in model:
         client_model = model.split("/")[-1]
-        print(f"Using Vertex AI with model {client_model}.")
+        # print(f"Using Vertex AI with model {client_model}.")
         return anthropic.AnthropicVertex(), client_model
     elif model.startswith("ollama/"):
-        print(f"Using Ollama with model {model}.")
+        # print(f"Using Ollama with model {model}.")
         return openai.OpenAI(
             api_key=os.environ.get("OLLAMA_API_KEY", ""),
             base_url="http://localhost:11434/v1",
         ), model
     elif "gpt" in model:
-        print(f"Using OpenAI API with model {model}.")
+        # print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
     elif "o1" in model or "o3" in model:
-        print(f"Using OpenAI API with model {model}.")
+        # print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
     elif model == "deepseek-coder-v2-0724":
-        print(f"Using OpenAI API with {model}.")
+        # print(f"Using OpenAI API with {model}.")
         return (
             openai.OpenAI(
                 api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -511,7 +549,7 @@ def create_client(model) -> tuple[Any, str]:
             model,
         )
     elif model == "deepcoder-14b":
-        print(f"Using HuggingFace API with {model}.")
+        # print(f"Using HuggingFace API with {model}.")
         # Using OpenAI client with HuggingFace API
         if "HUGGINGFACE_API_KEY" not in os.environ:
             raise ValueError("HUGGINGFACE_API_KEY environment variable not set")
@@ -523,7 +561,7 @@ def create_client(model) -> tuple[Any, str]:
             model,
         )
     elif model == "llama3.1-405b":
-        print(f"Using OpenAI API with {model}.")
+        # print(f"Using OpenAI API with {model}.")
         return (
             openai.OpenAI(
                 api_key=os.environ["OPENROUTER_API_KEY"],
@@ -532,7 +570,7 @@ def create_client(model) -> tuple[Any, str]:
             "meta-llama/llama-3.1-405b-instruct",
         )
     elif 'gemini' in model:
-        print(f"Using OpenAI API with {model}.")
+        # print(f"Using OpenAI API with {model}.")
         return (
             openai.OpenAI(
                 api_key=os.environ["GEMINI_API_KEY"],
@@ -540,5 +578,12 @@ def create_client(model) -> tuple[Any, str]:
             ),
             model,
         )
+    elif model in ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma-7b-it", "gemma2-9b-it"]:
+        if groq is None:
+            raise ValueError("groq package not installed. Install with: pip install groq")
+        if "GROQ_API_KEY" not in os.environ:
+            raise ValueError("GROQ_API_KEY environment variable not set")
+        # print(f"Using Groq API with {model}.")
+        return groq.Groq(), model
     else:
         raise ValueError(f"Model {model} not supported.")

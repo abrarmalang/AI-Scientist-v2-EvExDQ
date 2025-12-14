@@ -2,6 +2,7 @@
 anthropic
 backoff
 openai
+groq
 # Viz
 matplotlib
 pypdf
