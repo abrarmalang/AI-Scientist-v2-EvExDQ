@@ -46,6 +46,15 @@ AI-Scientist-v2-base/
 │   └── llm.py                      # create_client(), get_response_from_llm()
 │
 ├── experimental_setup_eval/        # Our extension (peer-level)
+│   ├── run_pipeline.py            # Main pipeline
+│   ├── run_collect.py             # Paper collection
+│   ├── run_validate.py            # Validation
+│   │
+│   ├── core/                      # Core infrastructure
+│   │   ├── pipeline.py            # Orchestrator
+│   │   ├── config.py              # Configuration
+│   │   └── schema.py              # Data models
+│   │
 │   ├── tools/
 │   │   ├── paper_processor.py     # Parse & redact papers
 │   │   ├── ground_truth_extractor.py
@@ -54,14 +63,13 @@ AI-Scientist-v2-base/
 │   │   ├── non_agentic_generator.py
 │   │   └── agentic_generator.py
 │   ├── evaluation/
-│   │   ├── quality_scorer.py
-│   │   ├── comparator.py
-│   │   └── alignment_scorer.py
-│   ├── data_collection/
-│   │   ├── collect_papers.py
-│   │   └── improved_paper_extraction.py
-│   ├── run_pipeline.py            # Main 3-stage pipeline
-│   └── validate_and_filter_papers.py
+│   │   ├── unified_evaluator.py   # Unified scoring logic
+│   │   └── data_models.py         # Evaluation data models
+│   ├── collection/
+│   │   ├── collector.py           # Collection logic
+│   │   └── improved_extraction.py
+│   └── validation/
+│       └── validator.py           # Validation logic
 │
 ├── data/papers/                   # Collected papers (immutable)
 ├── runs/                          # Pipeline results
@@ -115,8 +123,8 @@ From AI Scientist v2:
 New components:
 -   **Tools**: `PaperProcessorTool`, `GroundTruthExtractor`
 -   **Generators**: `NonAgenticSetupGenerator`, `AgenticSetupGenerator`
--   **Evaluators**: `SetupQualityScorer`, `AlignmentScorer`, `SetupComparator`
--   **Workflows**: Paper collection, validation, 3-stage pipeline
+-   **Evaluators**: `UnifiedEvaluator` (handles quality, alignment, comparison)
+-   **Workflows**: `run_collect.py`, `run_validate.py`, `run_pipeline.py`
 
 ---
 
@@ -219,58 +227,27 @@ def generate_setup(self, paper_context: Dict, domain: str, num_drafts: int = 3) 
 
 ### 3. Evaluation Components
 
-#### SetupQualityScorer
+#### UnifiedEvaluator
 
-**File**: [experimental_setup_eval/evaluation/quality_scorer.py](../experimental_setup_eval/evaluation/quality_scorer.py)
+**File**: [experimental_setup_eval/evaluation/unified_evaluator.py](../experimental_setup_eval/evaluation/unified_evaluator.py)
 
-**Purpose**: Score setup quality before seeing ground truth
+**Purpose**: Centralized evaluation logic handling quality scoring, alignment checking, and setup comparison.
 
-**Scoring Dimensions** (0-1 scale):
+**Key Features**:
+- **Quality Scoring**: Evaluates completeness, diversity, alignment, datasets, and protocol (0-1 scale).
+- **Alignment Scoring**: Compares AI setups against ground truth using fuzzy matching (Baselines, Metrics, Datasets).
+- **Comparison**: Determines winner between Non-Agentic and Agentic approaches based on quality and alignment.
+
+**Configuration**:
+Configurable via `config.yaml` or CLI arguments (e.g., weights, thresholds).
+
 ```python
-{
-    "completeness": 0.3,      # Has all required components?
-    "diversity": 0.2,         # Baselines span complexity?
-    "alignment": 0.25,        # Metrics match domain?
-    "datasets": 0.15,         # Well-specified datasets?
-    "protocol": 0.1           # Rigorous protocol?
-}
+# Usage
+evaluator = UnifiedEvaluator(config.evaluation)
+quality_result = evaluator.score_quality(setup, context)
+alignment_result = evaluator.score_alignment(setup, ground_truth)
+winner = evaluator.compare_setups(non_agentic_res, agentic_res)
 ```
-
-**Total Score**: Weighted average of dimensions
-
-#### AlignmentScorer
-
-**File**: [experimental_setup_eval/evaluation/alignment_scorer.py](../experimental_setup_eval/evaluation/alignment_scorer.py)
-
-**Purpose**: Compare AI-generated setup with ground truth
-
-**Matching Strategy**: Fuzzy string matching
-```python
-def fuzzy_match(ai_name: str, gt_name: str) -> bool:
-    """
-    Returns True if:
-    - Exact match
-    - Substring match
-    - High similarity (>0.8 using difflib)
-    """
-```
-
-**Scores**:
-- **Baseline Recall**: % of true baselines found
-- **Metric Recall**: % of true metrics found
-- **Dataset Recall**: % of true datasets found
-- **Overall**: Weighted average (40% baselines, 40% metrics, 20% datasets)
-
-#### SetupComparator
-
-**File**: [experimental_setup_eval/evaluation/comparator.py](../experimental_setup_eval/evaluation/comparator.py)
-
-**Purpose**: Compare non-agentic vs agentic setups
-
-**Comparison Dimensions**:
-- Quality score differences
-- Time and cost analysis
-- Determines winner based on quality, cost, and alignment
 
 ### 4. Ground Truth Extractor
 
@@ -378,9 +355,11 @@ class PaperProcessorTool(BaseTool):
 
 ### Adding a New Evaluation Metric
 
-1. **Define metric in quality_scorer.py**:
+### Adding a New Evaluation Metric
+
+1. **Define metric in unified_evaluator.py**:
 ```python
-def score_new_dimension(self, setup: Dict) -> float:
+def _score_new_dimension(self, setup: ExperimentalSetup) -> float:
     """
     Score a new quality dimension.
 
@@ -390,21 +369,17 @@ def score_new_dimension(self, setup: Dict) -> float:
     pass
 ```
 
-2. **Add to scoring weights**:
-```python
-WEIGHTS = {
-    "completeness": 0.25,     # Reduced
-    "diversity": 0.2,
-    "alignment": 0.2,         # Reduced
-    "datasets": 0.15,
-    "protocol": 0.1,
-    "new_dimension": 0.1      # NEW
-}
+2. **Add to scoring weights in config**:
+```yaml
+# config.yaml
+evaluation:
+  weights:
+    new_dimension: 0.1
 ```
 
-3. **Update in calculate_quality_score()**:
+3. **Update `_calculate_quality_score` in unified_evaluator.py**:
 ```python
-scores["new_dimension"] = self.score_new_dimension(setup)
+scores["new_dimension"] = self._score_new_dimension(setup)
 ```
 
 ### Adding a New Generator
@@ -440,7 +415,7 @@ save_json(my_setup, f"{output_dir}/my_setup.json")
 3. **Add to comparison**:
 ```python
 # Compare with existing approaches
-my_alignment = alignment_scorer.score_alignment(my_setup, ground_truth)
+my_alignment = evaluator.score_alignment(my_setup, ground_truth)
 ```
 
 ### Adding a New Tool
@@ -558,11 +533,11 @@ def test_full_pipeline():
     gt = extractor.extract_ground_truth("test_paper.md")
 
     # Score alignment
-    scorer = AlignmentScorer()
-    alignment = scorer.score_alignment(setup, gt)
+    evaluator = UnifiedEvaluator(config.evaluation)
+    alignment = evaluator.score_alignment(setup, gt)
 
-    assert alignment["overall"] >= 0.0
-    assert alignment["overall"] <= 1.0
+    assert alignment.overall_score >= 0.0
+    assert alignment.overall_score <= 1.0
 ```
 
 ---
@@ -685,7 +660,7 @@ def generate_setup(self, paper_context: Dict, domain: str) -> Dict:
 **Key Components**:
 - **Tools**: Paper processing, ground truth extraction
 - **Generators**: Non-agentic, agentic, (extensible)
-- **Evaluators**: Quality scoring, alignment scoring, comparison
+- **Evaluators**: `UnifiedEvaluator` (Centralized evaluation logic)
 
 **Integration Points**:
 - LLM integration via `create_client()`, `get_response_from_llm()`

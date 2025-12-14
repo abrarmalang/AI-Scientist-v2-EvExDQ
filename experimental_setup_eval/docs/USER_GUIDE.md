@@ -36,14 +36,15 @@ Evaluates whether AI can design experimental setups as well as humans by:
 
 ```bash
 # 1. Collect papers (creates papers_to_process.txt automatically)
-python experimental_setup_eval/data_collection/collect_papers.py --query "transformer" --max-results 2 --download-pdfs --convert-markdown
+python run_collect.py --query "transformer" --max-results 2 --download-pdfs --convert-markdown
 
 # 2. Set API keys
+export GROQ_API_KEY="your-key"  # Recommended
+# OR
 export OPENAI_API_KEY="your-key"
-export ANTHROPIC_API_KEY="your-key"
 
 # 3. Run full pipeline
-python experimental_setup_eval/run_pipeline.py papers_to_process.txt
+python run_pipeline.py papers_to_process.txt
 ```
 
 **Results**: `runs/{timestamp}_full_eval/` with complete evaluation
@@ -52,13 +53,13 @@ python experimental_setup_eval/run_pipeline.py papers_to_process.txt
 
 ```bash
 # 1. Collect papers
-python experimental_setup_eval/data_collection/collect_papers.py --query "transformer" --max-results 10 --download-pdfs --convert-markdown
+python run_collect.py --query "transformer" --max-results 10 --download-pdfs --convert-markdown
 
 # 2. Validate papers (filters out poor quality)
-python experimental_setup_eval/validate_and_filter_papers.py data/papers/{timestamp}_collection/
+python run_validate.py data/papers/{timestamp}_collection/
 
 # 3. Run pipeline on validated papers only
-python experimental_setup_eval/run_pipeline.py data/papers/{timestamp}_collection/validated_papers_to_process.txt
+python run_pipeline.py data/papers/{timestamp}_collection/validated_papers_to_process.txt
 ```
 
 ---
@@ -70,7 +71,7 @@ python experimental_setup_eval/run_pipeline.py data/papers/{timestamp}_collectio
 Collect papers from Semantic Scholar API:
 
 ```bash
-python experimental_setup_eval/data_collection/collect_papers.py \
+python run_collect.py \
   --query "transformer neural networks" \
   --max-results 10 \
   --download-pdfs \
@@ -88,7 +89,7 @@ python experimental_setup_eval/data_collection/collect_papers.py \
 ### Advanced Collection Options
 
 ```bash
-python experimental_setup_eval/data_collection/collect_papers.py \
+python run_collect.py \
     --query "weather forecasting" \
     --max-results 20 \
     --min-citations 10 \
@@ -160,7 +161,7 @@ The **PaperProcessorTool** has been enhanced to handle common PDF-to-markdown is
 ### Basic Validation
 
 ```bash
-python experimental_setup_eval/validate_and_filter_papers.py \
+python run_validate.py \
     data/papers/{timestamp}_collection/
 ```
 
@@ -188,7 +189,7 @@ Papers must pass these checks:
 ### Custom Validation Thresholds
 
 ```bash
-python experimental_setup_eval/validate_and_filter_papers.py \
+python run_validate.py \
     data/papers/{timestamp}_collection/ \
     --min-title-length 15 \
     --min-abstract-length 200 \
@@ -269,14 +270,16 @@ Example report:
 
 ### Running Options
 
+### Running Options
+
 **Basic Run**:
 ```bash
-python experimental_setup_eval/run_pipeline.py papers_to_process.txt
+python run_pipeline.py papers_to_process.txt
 ```
 
 **With Custom Output Directory**:
 ```bash
-python experimental_setup_eval/run_pipeline.py \
+python run_pipeline.py \
     papers_to_process.txt \
     --output-dir runs/my_experiment
 ```
@@ -287,7 +290,7 @@ python experimental_setup_eval/run_pipeline.py \
 echo "data/papers/collection/paper1/paper.md" > my_papers.txt
 echo "data/papers/collection/paper2/paper.md" >> my_papers.txt
 
-python experimental_setup_eval/run_pipeline.py my_papers.txt
+python run_pipeline.py my_papers.txt
 ```
 
 ---
@@ -471,20 +474,22 @@ agentic_gen = AgenticSetupGenerator(num_drafts=2)  # Instead of 3
 ```
 AI-Scientist-v2-base/
 ├── experimental_setup_eval/        # Extension
+│   ├── run_pipeline.py            # Main pipeline
+│   ├── run_collect.py             # Collection entry point
+│   ├── run_validate.py            # Validation entry point
+│   │
+│   ├── core/                      # Shared infrastructure
+│   ├── collection/                # Paper collection logic
+│   ├── validation/                # Validation logic
 │   ├── tools/
 │   │   ├── paper_processor.py     # Parse & redact papers
 │   │   └── ground_truth_extractor.py
 │   ├── generators/
 │   │   ├── non_agentic_generator.py
 │   │   └── agentic_generator.py
-│   ├── evaluation/
-│   │   ├── quality_scorer.py
-│   │   ├── comparator.py
-│   │   └── alignment_scorer.py
-│   ├── data_collection/
-│   │   └── collect_papers.py      # Collection entry point
-│   ├── run_pipeline.py            # Main pipeline
-│   └── validate_and_filter_papers.py
+│   └── evaluation/
+│       ├── unified_evaluator.py
+│       └── data_models.py
 │
 ├── data/papers/                   # Collected papers (immutable)
 └── runs/                          # Pipeline results
@@ -520,21 +525,21 @@ This pipeline helps answer:
 
 ```bash
 # Quick test with 2 papers
-python experimental_setup_eval/data_collection/collect_papers.py --query "attention mechanism" --max-results 2 --download-pdfs --convert-markdown
-python experimental_setup_eval/run_pipeline.py data/papers/{timestamp}_collection/papers_to_process.txt
+python run_collect.py --query "attention mechanism" --max-results 2 --download-pdfs --convert-markdown
+python run_pipeline.py data/papers/{timestamp}_collection/papers_to_process.txt
 ```
 
 ### 2. Scale Up
 
 ```bash
 # Collect more papers
-python experimental_setup_eval/data_collection/collect_papers.py --query "transformer" --max-results 20 --download-pdfs --convert-markdown
+python run_collect.py --query "transformer" --max-results 20 --download-pdfs --convert-markdown
 
 # Validate first
-python experimental_setup_eval/validate_and_filter_papers.py data/papers/{timestamp}_collection/
+python run_validate.py data/papers/{timestamp}_collection/
 
 # Process validated papers
-python experimental_setup_eval/run_pipeline.py data/papers/{timestamp}_collection/validated_papers_to_process.txt
+python run_pipeline.py data/papers/{timestamp}_collection/validated_papers_to_process.txt
 ```
 
 ### 3. Analyze Results
@@ -558,13 +563,13 @@ python experimental_setup_eval/run_pipeline.py data/papers/{timestamp}_collectio
 **Complete workflow**:
 ```bash
 # 1. Collect papers
-python experimental_setup_eval/data_collection/collect_papers.py --query "your topic" --max-results 10 --download-pdfs --convert-markdown
+python run_collect.py --query "your topic" --max-results 10 --download-pdfs --convert-markdown
 
 # 2. Validate (recommended)
-python experimental_setup_eval/validate_and_filter_papers.py data/papers/{timestamp}_collection/
+python run_validate.py data/papers/{timestamp}_collection/
 
 # 3. Run pipeline
-python experimental_setup_eval/run_pipeline.py data/papers/{timestamp}_collection/validated_papers_to_process.txt
+python run_pipeline.py data/papers/{timestamp}_collection/validated_papers_to_process.txt
 
 # 4. View results
 cat runs/{timestamp}_full_eval/summary.json
@@ -584,7 +589,7 @@ cat runs/{timestamp}_full_eval/summary.json
 ## Support
 
 For code reference:
-- **Main Pipeline**: [run_pipeline.py](../experimental_setup_eval/run_pipeline.py)
+- **Main Pipeline**: [run_pipeline.py](../run_pipeline.py)
 - **Tools**: [tools/](../experimental_setup_eval/tools/)
 - **Generators**: [generators/](../experimental_setup_eval/generators/)
 - **Evaluation**: [evaluation/](../experimental_setup_eval/evaluation/)

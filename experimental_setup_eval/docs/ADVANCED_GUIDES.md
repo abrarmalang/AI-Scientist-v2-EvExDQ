@@ -112,54 +112,31 @@ You are an expert in machine learning research methodology. Your task is to desi
 
 ---
 
-**Your Task**: Design a complete experimental setup that includes:
+**Your Task**: Design a comprehensive experimental setup.
 
-1. **Baselines**: What baseline methods should be compared against?
-   **CRITICAL**: Look carefully at the Related Work section above to identify specific prior methods mentioned by name.
-   Include:
-   - Specific prior methods mentioned in Related Work (use exact names if provided)
-   - Simple baselines appropriate for this domain
-   - Ablation baselines if applicable
-   - Ensure diversity in complexity levels
+**STEP 1 - SCAN RELATED WORK**: Before proposing any baselines, carefully read the Related Work section above. List out EVERY specific method/model name mentioned (e.g., "GraphCast", "Pangu-Weather", "BERT"). These are your primary baseline candidates.
 
-   **Example**: If Related Work mentions "BERT" and "GPT-2", include those as baselines, not generic "transformer model".
+**STEP 2 - USE EXACT NAMES**: When you find specific method names in Related Work, use those EXACT names as baselines. Do NOT generalize them.
 
-2. **Metrics**: What evaluation metrics should be used?
-   **CRITICAL**: Look at the research question and domain to infer what metrics the authors would likely use.
-   Consider:
-   - Primary metrics that directly measure the research question (be specific to the domain)
-   - Diagnostic metrics for deeper analysis
-   - Domain-appropriate metrics (e.g., for localization: accuracy, precision error; for NLP: perplexity, BLEU; for CV: mAP, IoU)
-   - Specify if higher is better and expected ranges
+**STEP 3 - ADD DIVERSITY**: After including specific methods from Related Work, add 1-2 simple baselines for completeness.
 
-   **Example**: For indoor localization, use "Localization Accuracy" not just "Accuracy".
+**Design the setup including**:
 
-3. **Datasets**: What datasets should be used for evaluation?
-   **CRITICAL**: If the Introduction or Method mentions specific data collection or dataset types, reference those.
-   Include:
-   - Datasets mentioned or implied in the paper (e.g., "indoor paths", "RSSI fingerprints")
-   - Standard benchmark datasets used in this specific research area
-   - Consider dataset characteristics mentioned in the method (size, domain, split)
-
-4. **Significance Tests**: What statistical tests should validate the results?
-   - Paired t-test, ANOVA, Wilcoxon, etc.
-   - Specify when each test is appropriate
-
-5. **Experimental Protocol**: Define the experimental procedure:
-   - Number of runs with different random seeds
-   - Cross-validation strategy
-   - Hyperparameter tuning approach
-   - Estimated compute budget
-
-6. **Overall Reasoning**: Explain why this experimental setup is appropriate for evaluating the proposed research.
-
-**Important Guidelines**:
-- Design the setup to be rigorous, reproducible, and comprehensive
-- Ensure baselines cover different complexity levels
-- Choose metrics that align with the paper's research question
-- Select datasets appropriate for the domain
-- Specify concrete details (not vague descriptions)
-- Justify your choices with clear rationale
+1. **Hypotheses**: Formulate clear, testable hypotheses derived from the research question.
+2. **Baselines**: Specific comparison methods (as identified in Step 1 & 2).
+3. **Control Groups**: Specific control conditions to isolate variables of interest.
+4. **Metrics**: Domain-specific evaluation metrics aligned with the research question (e.g., "Localization Accuracy" for indoor localization).
+5. **Datasets**: Datasets mentioned or implied in the paper context.
+6. **Methodological Rigor**:
+   - Sample size justification (power analysis if applicable)
+   - Randomization and blinding procedures
+   - Significance tests
+7. **Validity**:
+   - Internal validity (causality)
+   - External validity (generalizability)
+   - Construct validity (measurement accuracy)
+8. **Experimental Protocol**: Reproducible procedure with multiple runs, seeds, validation strategy.
+9. **Reasoning**: Justify the overall setup design.
 
 Generate a complete experimental setup following these guidelines.
 
@@ -178,25 +155,20 @@ Save the LLM's response as **"AI_Generated_Setup.txt"**
 
 For more thorough evaluation, generate 3 different setups with varied focus:
 
-#### Draft 1: Baseline-Focused
+#### Draft 0: Balanced (Recommended)
+Use the prompt from Stage 2B above. This focuses on completeness and balance across all aspects.
 
-Add this before the task:
-
-```
-**Focus for this setup**: Prioritize **baseline diversity**. **CRITICAL: Identify specific methods mentioned in the Related Work section and use those exact names as baselines.** Include baselines of varying complexity (simple, moderate, complex).
-```
+#### Draft 1: Diversity-Focused
+Add this focus instruction:
+"**Focus for this setup**: Prioritize **baseline diversity**. **CRITICAL**: Identify at least 3-5 specific methods mentioned by name in Related Work. Do NOT use generic descriptions."
 
 #### Draft 2: Metric-Focused
+Add this focus instruction:
+"**Focus for this setup**: Prioritize **metric rigor and alignment**. **CRITICAL**: Infer domain-specific metrics from the research question. Use specific terminology (e.g., 'Forecast Accuracy' not just 'Accuracy')."
 
-```
-**Focus for this setup**: Prioritize **metric rigor and alignment**. **CRITICAL: Infer domain-specific metrics from the research question.** Use domain-specific metric names (e.g., "Localization Accuracy" for indoor localization, not generic "Accuracy").
-```
-
-#### Draft 3: Dataset-Focused
-
-```
-**Focus for this setup**: Prioritize **dataset variety and appropriateness**. **CRITICAL: Look for mentions of data types or collection methods in Introduction/Method.** Include datasets implied by the paper's methodology.
-```
+#### Draft 3: Dataset-Focused (Optional)
+Add this focus instruction:
+"**Focus for this setup**: Prioritize **dataset variety**. **CRITICAL**: Scan Introduction/Method for specific dataset names or data types."
 
 **Then**: Review all 3 drafts and select the best one (or combine elements).
 
@@ -232,34 +204,26 @@ Read the **Experiments/Results** section (which you skipped earlier).
 
 ### Stage 4: Calculate Alignment
 
-#### Manual Scoring
+### Stage 4: Calculate Alignment
 
-For each category, calculate:
+#### Quantitative Scoring
+For each category, calculate F1 Score (Harmonic mean of Precision and Recall):
 
-**1. Baselines Recall**
-```
-Count matches using fuzzy matching:
-- Exact match: "ANVIL" = "ANVIL" ✓
-- Substring match: "SHERPA" in "SHERPA framework" ✓
-- No match: "Random" vs "ANVIL" ✗
+1. **Baselines/Metrics/Datasets F1**:
+   - Recall = (# AI items matching GT) / (# total GT items)
+   - Precision = (# AI items matching GT) / (# total AI items)
+   - F1 = 2 * (Precision * Recall) / (Precision + Recall)
 
-Recall = (# AI baselines matching GT) / (# total GT baselines)
-```
+#### Qualitative Alignment
+Manually check alignment for:
+- **Hypotheses**: Do AI hypotheses match the core testable claims in GT?
+- **Controls**: Are control groups semantically equivalent?
+- **Protocol**: Are key elements (runs, seeds, cross-validation) present in both?
 
-**2. Metrics Recall**
-```
-Recall = (# AI metrics matching GT) / (# total GT metrics)
-```
-
-**3. Datasets Recall**
-```
-Recall = (# AI datasets matching GT) / (# total GT datasets)
-```
-
-**4. Overall Alignment**
-```
-Overall = (Baseline Recall + Metrics Recall + Datasets Recall) / 3
-```
+#### Overall Score
+Weighted average (automated system uses):
+- Quantitative (Baselines, Metrics, Datasets)
+- Qualitative (Hypotheses, Controls, Protocol)
 
 ### Expected Results
 
@@ -369,10 +333,25 @@ Include datasets implied by the paper (e.g., "indoor paths", "RSSI fingerprints"
 - Metrics: 75-100% recall
 - Datasets: 25-50% recall
 
-### Files Modified
+### Recent Improvements (Dec 2025)
 
-- [non_agentic_generator.py](../experimental_setup_eval/generators/non_agentic_generator.py)
-- [agentic_generator.py](../experimental_setup_eval/generators/agentic_generator.py)
+#### 1. Focus-Based Prompting
+Moved from a single monolithic prompt to varied "Focus Types" for agentic generation:
+- **Balanced**: Combines all best practices (Used for Draft 0)
+- **Diversity**: Forces extensive Related Work scanning
+- **Metrics**: Forces domain-specific terminology
+- **Datasets**: Forces detailed infrastructure inference
+
+#### 2. Structured Guidelines
+Prompts now explicitly request:
+- **Testable Hypotheses**: Not just general questions
+- **Control Groups**: Explicit separation from baselines
+- **Methodological Rigor**: Power analysis, blinding, randomization
+- **Validity awareness**: Internal/External/Construct validity checks
+
+#### 3. Expanded Context
+- **Introduction**: Increased to 3000 chars
+- **Related Work**: Increased to 4000 chars (Critical for baseline extraction)
 
 ---
 
