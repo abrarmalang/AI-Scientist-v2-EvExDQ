@@ -159,7 +159,8 @@ def get_metadata(results: Dict, approach: str = APPROACH_NON_AGENTIC) -> Dict:
     Returns:
         Metadata dictionary
     """
-    return results.get(approach, {}).get('setup', {}).get('metadata', {})
+    # Flattened structure: results[approach]['metadata']
+    return results.get(approach, {}).get('metadata', {})
 
 
 def get_exploration_tree(results: Dict) -> List[Dict]:
@@ -171,7 +172,8 @@ def get_exploration_tree(results: Dict) -> List[Dict]:
     Returns:
         List of draft dictionaries
     """
-    return results.get(APPROACH_AGENTIC, {}).get('setup', {}).get('exploration_tree', [])
+    # Flattened structure: results['agentic']['exploration_tree']
+    return results.get(APPROACH_AGENTIC, {}).get('exploration_tree', [])
 
 
 def get_paper_context(context: Dict) -> Dict[str, str]:
@@ -629,19 +631,9 @@ def extract_setup_components(setup_data: Dict) -> Dict:
     Returns:
         Dictionary with baselines, metrics, datasets lists
     """
-    # Handle nested structure - setup might be in 'setup' -> 'setup' (double nesting)
-    # or 'setup' -> 'ai_setup' (old structure)
-    if not setup_data:
-        return {'baselines': [], 'metrics': [], 'datasets': []}
-
+    # In new structure, setup_data IS the approach dict (e.g. results['non_agentic'])
+    # And it has a 'setup' key which contains the actual experimental setup
     setup = setup_data.get('setup', {})
-
-    # Check for double-nested 'setup' structure (current format)
-    if 'setup' in setup and isinstance(setup['setup'], dict):
-        setup = setup['setup']
-    # Check for old 'ai_setup' structure (backward compatibility)
-    elif 'ai_setup' in setup:
-        setup = setup['ai_setup']
 
     return {
         'baselines': setup.get('baselines', []),

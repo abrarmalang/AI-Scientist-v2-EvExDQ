@@ -143,12 +143,12 @@ class SimpleEvaluationPipeline:
                 results = {
                     "paper_id": paper_id,
                     "non_agentic": {
-                        "setup": non_agentic_result,
+                        **non_agentic_result,
                         "quality": non_agentic_quality.__dict__,
                         "alignment": non_agentic_alignment.__dict__ if non_agentic_alignment else None
                     },
                     "agentic": {
-                        "setup": agentic_result,
+                        **agentic_result,
                         "quality": agentic_quality.__dict__,
                         "alignment": agentic_alignment.__dict__ if agentic_alignment else None
                     },
